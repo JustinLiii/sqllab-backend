@@ -5,15 +5,8 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 public class Server {
     static SQLHandler sqlHandler;
@@ -28,33 +21,44 @@ public class Server {
     static class TestHandler implements HttpHandler{
         @Override
         public void handle(HttpExchange exchange) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try{
-                        //只用POST
-                        if(!exchange.getRequestMethod().contentEquals("POST")) return;
+            new Thread(() -> {
+                try{
 
-                        JSONObject jsonObject = JSON.parseObject(new String(exchange.getRequestBody().readAllBytes()));
+                    exchange.getResponseHeaders().add("Access-Control-Allow-Origin","*");
+                    //只用POST
+                    exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "POST, OPTIONS");
+                    exchange.getResponseHeaders().add("Access-Control-Allow-Headers","content-type");
 
 
+                    if(exchange.getRequestMethod().contentEquals("OPTIONS")) {
                         exchange.sendResponseHeaders(200,0);
+                    } else {
+                        byte[] requestBody = exchange.getRequestBody().readAllBytes();
+                        System.out.println(new String(requestBody));
+                        JSONObject jsonObject = JSON.parseObject(new String(requestBody));
 
-
-                        switch (jsonObject.getString("Header")) {
+                        switch (jsonObject.getString("header")) {
                             case "Login" -> {
-                                if (sqlHandler.loginCheck(jsonObject.getString("name"),jsonObject.getString("passwd"))) {
-                                    String response = "{\"result\":\"true\"}";
-                                    exchange.getResponseBody().write(response.getBytes(StandardCharsets.UTF_8));
-                                    exchange.getResponseBody().close();
+                                JSONObject loginInfo = jsonObject.getJSONObject("user");
+                                JSONObject responseJSON = new JSONObject();
+
+                                if (sqlHandler.loginCheck(loginInfo.getString("name"), loginInfo.getString("passwd"))) {
+                                    responseJSON.put("result",true);
+                                } else {
+                                    responseJSON.put("result",false);
                                 }
+                                byte[] response = JSON.toJSONBytes(responseJSON);
+                                exchange.sendResponseHeaders(200,response.length);
+                                exchange.getResponseBody().write(response);
+                                exchange.getResponseBody().close();
                             }
                         }
+                    }
 
-                        //获得查询字符串(get)
+                    //获得查询字符串(get)
 //                        String queryString =  exchange.getRequestURI().getQuery();
 //                        Map<String,String> queryStringInfo = formData2Dic(queryString);
-                        //获得表单提交数据(post)
+                    //获得表单提交数据(post)
 
 //                        String postString = IOUtils.toString(exchange.getRequestBody());
 //                        Map<String,String> postInfo = formData2Dic(postString);
@@ -63,11 +67,8 @@ public class Server {
 //                        OutputStream os = exchange.getResponseBody();
 //                        os.write(response.getBytes());
 //                        os.close();
-                    }catch (IOException ie) {
-                        ie.printStackTrace();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                }catch (IOException ie) {
+                    ie.printStackTrace();
                 }
             }).start();
         }
