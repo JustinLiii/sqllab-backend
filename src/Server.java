@@ -1,4 +1,5 @@
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -7,6 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 
 public class Server {
     static SQLHandler sqlHandler;
@@ -30,6 +32,9 @@ public class Server {
                     exchange.getResponseHeaders().add("Access-Control-Allow-Headers","content-type");
 
 
+                    System.out.println("New exchange " + exchange.getRequestMethod());
+
+
                     if(exchange.getRequestMethod().contentEquals("OPTIONS")) {
                         exchange.sendResponseHeaders(200,0);
                     } else {
@@ -42,11 +47,66 @@ public class Server {
                                 JSONObject loginInfo = jsonObject.getJSONObject("user");
                                 JSONObject responseJSON = new JSONObject();
 
-                                if (sqlHandler.loginCheck(loginInfo.getString("name"), loginInfo.getString("passwd"))) {
+                                boolean[] result = sqlHandler.loginCheck(loginInfo.getString("name"), loginInfo.getString("passwd"));
+                                if (result[0]) {
                                     responseJSON.put("result",true);
                                 } else {
                                     responseJSON.put("result",false);
                                 }
+                                if (result[1]) {
+                                    responseJSON.put("admin",true);
+                                } else {
+                                    responseJSON.put("admin",false);
+                                }
+                                byte[] response = JSON.toJSONBytes(responseJSON);
+                                exchange.sendResponseHeaders(200,response.length);
+                                exchange.getResponseBody().write(response);
+                                exchange.getResponseBody().close();
+                            }
+                            case "CheckSignUp" -> {
+                                JSONObject checkInfo = jsonObject.getJSONObject("user");
+                                JSONObject responseJSON = new JSONObject();
+
+                                if (sqlHandler.checkSignUp(checkInfo.getString("name"))) {
+                                    responseJSON.put("result",true);
+                                } else {
+                                    responseJSON.put("result",false);
+                                }
+                                byte[] response = JSON.toJSONBytes(responseJSON);
+                                exchange.sendResponseHeaders(200,response.length);
+                                exchange.getResponseBody().write(response);
+                                exchange.getResponseBody().close();
+                            }
+                            case "SignUp" -> {
+                                JSONObject signUpInfo = jsonObject.getJSONObject("user");
+                                JSONObject responseJSON = new JSONObject();
+                                sqlHandler.signUp(signUpInfo.getString("name"),signUpInfo.getString("passwd"),signUpInfo.getBoolean("admin"));
+                                responseJSON.put("result",true);
+                                byte[] response = JSON.toJSONBytes(responseJSON);
+                                exchange.sendResponseHeaders(200,response.length);
+                                exchange.getResponseBody().write(response);
+                                exchange.getResponseBody().close();
+
+                            }
+                            case "CreatedActivity" -> {
+                                JSONObject userInfo = jsonObject.getJSONObject("user");
+                                JSONObject responseJSON = new JSONObject();
+
+                                if (!userInfo.getBoolean("admin")) {
+                                    responseJSON.put("result",false);
+                                } else {
+                                    responseJSON.put("result", true);
+                                    responseJSON.put("activities",new JSONArray(sqlHandler.getList(userInfo.getString("name"), SQLHandler.ActivityType.Creator)));
+                                }
+                                byte[] response = JSON.toJSONBytes(responseJSON);
+                                exchange.sendResponseHeaders(200,response.length);
+                                exchange.getResponseBody().write(response);
+                                exchange.getResponseBody().close();
+                            }
+                            case "AllActivity" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                responseJSON.put("result", true);
+                                responseJSON.put("activities",new JSONArray(sqlHandler.getList(null, SQLHandler.ActivityType.All)));
                                 byte[] response = JSON.toJSONBytes(responseJSON);
                                 exchange.sendResponseHeaders(200,response.length);
                                 exchange.getResponseBody().write(response);
