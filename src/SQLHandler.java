@@ -1,6 +1,8 @@
 import com.alibaba.fastjson2.JSONObject;
 
 import java.sql.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -113,8 +115,10 @@ public class SQLHandler {
             stmt.execute("use "+ DB_NAME);
             ResultSet rs = stmt.executeQuery(sql);
             if (rs.next()) {
+                System.out.println("exist");
                 return false;
             } else {
+                System.out.println("not exist");
                 return true;
             }
         } catch (SQLException e) {
@@ -124,7 +128,7 @@ public class SQLHandler {
     }
 
     public void signUp(String name, String passwd, boolean admin) {
-        String sql = "INSERT INTO userInfo VALUES ('"+name+"','"+passwd+"',"+admin;
+        String sql = "INSERT INTO userInfo VALUES ('"+name+"','"+passwd+"',"+admin+");";
         System.out.println("Signing user "+name);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("use "+ DB_NAME);
@@ -168,16 +172,106 @@ public class SQLHandler {
                         System.out.println("Get activity"+ result.getString("name"));
 
                         returnList.add(result);
+
                     }
                     return returnList;
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
             }
-            case Applied -> {return null;}
+            case Applied -> {
+                String sql = "SELECT a.*,ap.ap_checked,ap.ap_accepted,ap_vaild,ap.ap_checked_time FROM sqllab.activity as a, sqllab.application as ap WHERE a.a_id=ap.a_id && ap.u_name='"+name+"';";
+                System.out.println(sql);
+                List<JSONObject> returnList = new ArrayList<>();
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("use " + DB_NAME);
+                    ResultSet rs = stmt.executeQuery(sql);
+                    while (rs.next()) {
+                        if (!rs.getBoolean("ap_vaild")) continue;
+                        JSONObject result = getApplicationInfo(rs);
+
+                        System.out.println("Get activity"+ result.getString("name"));
+
+                        returnList.add(result);
+                    }
+                    return returnList;
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
             case Approved -> {return null;}
         }
         return null;
+    }
+
+    public void apply(int id, String userName) {
+        String sql = "INSERT INTO sqllab.application (sqllab.application.u_name, sqllab.application.a_id, sqllab.application.ap_checked, sqllab.application.ap_vaild, sqllab.application.ap_create_time) " +
+                "values("+"'"+userName+"',"+id+","+false+","+true+","+"NOW()"+");";
+        System.out.println(sql);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("use " + DB_NAME);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void createActivity(JSONObject data) {
+//        String sql = "INSERT INTO sqllab.activity (sqllab.activity.a_creator, sqllab.activity.a_name, sqllab.activity.a_start_time, sqllab.activity.a_end_time, sqllab.activity.a_apply_deadline, sqllab.activity.a_person_needed, sqllab.activity.a_description, sqllab.activity.a_active, sqllab.activity.a_address, sqllab.activity.a_modified_time)" +
+//                "values ('"+data.getString("creator")+"','"+data.getString("name")+"','" + phraseDateTimeString(data.getLongValue("start_time")) +"','"+ phraseDateTimeString(data.getLongValue("end_time"))+"','"+ phraseDateTimeString(data.getLongValue("deadline")) +"',"+data.getInteger("person_needed")+",'"+ data.getString("description")+"',true,'"+data.getString("address")+"',NOW())";
+        String sql = "INSERT INTO sqllab.activity (sqllab.activity.a_creator, sqllab.activity.a_name, sqllab.activity.a_start_time, sqllab.activity.a_end_time, sqllab.activity.a_apply_deadline, sqllab.activity.a_person_needed, sqllab.activity.a_description, sqllab.activity.a_active, sqllab.activity.a_address, sqllab.activity.a_modified_time)" +
+                "values ('"+data.getString("creator")+"','"+data.getString("name")+"','" + data.getString("start_time") +"','"+ data.getString("end_time") + "','" + data.getString("deadline") + "'," + data.getInteger("person_needed")+",'"+ data.getString("description")+"',true,'"+data.getString("address")+"',NOW())";
+        System.out.println(sql);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("use " + DB_NAME);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void dropActivity(int id) {
+        String sql = "DELETE FROM sqllab.activity WHERE sqllab.activity.a_id="+id+";";
+        System.out.println(sql);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("use " + DB_NAME);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public List<JSONObject> getApplicants(int id) {
+        String sql = "SELECT * FROM sqllab.application WHERE a_id=" + id + ";";
+        System.out.println(sql);
+        List<JSONObject> returnList = new ArrayList<>();
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("use " + DB_NAME);
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                if (!rs.getBoolean("ap_vaild")) continue;
+                JSONObject result = getApplication(rs);
+
+                System.out.println("Get activity"+ result.getString("name"));
+
+                returnList.add(result);
+            }
+            return returnList;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public void agree(String name, int aid, boolean agree) {
+        String sql = "Update sqllab.application SET sqllab.application.ap_accepted="+agree+", sqllab.application.ap_checked=true,sqllab.application.ap_checked_time=NOW() WHERE sqllab.application.a_id="+aid+"&& sqllab.application.u_name='"+name+"';";
+        System.out.println(sql);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("use " + DB_NAME);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public void close(){
@@ -188,7 +282,7 @@ public class SQLHandler {
         }
     }
 
-    private JSONObject getActivityInfo(ResultSet rs) throws SQLException{
+    protected JSONObject getActivityInfo(ResultSet rs) throws SQLException{
         JSONObject result = new JSONObject();
         result.put("id", rs.getInt("a_id"));
         result.put("creator", rs.getString("a_creator"));
@@ -204,5 +298,35 @@ public class SQLHandler {
         result.put("modified_time", rs.getDate("a_modified_time").getTime() + rs.getTime("a_modified_time").getTime() + 28800000);
 
         return result;
+    }
+
+    protected JSONObject getApplicationInfo(ResultSet rs) throws SQLException {
+        JSONObject result = getActivityInfo(rs);
+
+        result.put("checked",rs.getBoolean("ap_checked"));
+        result.put("accepted", rs.getBoolean("ap_accepted"));
+        if (rs.getDate("ap_checked_time") != null) {
+            result.put("checked_time", rs.getDate("ap_checked_time").getTime() + rs.getTime("ap_checked_time").getTime() + 28800000);
+        }
+//        ap.ap_checked,ap.ap_accepted,ap_vaild,ap.ap_checked_time
+        return result;
+    }
+
+    protected JSONObject getApplication(ResultSet rs) throws SQLException {
+        JSONObject result = new JSONObject();
+        result.put("name",rs.getString("u_name"));
+        result.put("checked",rs.getBoolean("ap_checked"));
+        result.put("accepted", rs.getBoolean("ap_accepted"));
+        if (rs.getDate("ap_checked_time") != null) {
+            result.put("checked_time", rs.getDate("ap_checked_time").getTime() + rs.getTime("ap_checked_time").getTime() + 28800000);
+        }
+        return result;
+    }
+
+    protected String phraseDateTimeString(long timestamp) {
+        Date date = new Date(timestamp);
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        System.out.println(format.format(date));
+        return  format.format(date);
     }
 }

@@ -58,10 +58,7 @@ public class Server {
                                 } else {
                                     responseJSON.put("admin",false);
                                 }
-                                byte[] response = JSON.toJSONBytes(responseJSON);
-                                exchange.sendResponseHeaders(200,response.length);
-                                exchange.getResponseBody().write(response);
-                                exchange.getResponseBody().close();
+                                sendResponse(exchange,responseJSON);
                             }
                             case "CheckSignUp" -> {
                                 JSONObject checkInfo = jsonObject.getJSONObject("user");
@@ -72,21 +69,14 @@ public class Server {
                                 } else {
                                     responseJSON.put("result",false);
                                 }
-                                byte[] response = JSON.toJSONBytes(responseJSON);
-                                exchange.sendResponseHeaders(200,response.length);
-                                exchange.getResponseBody().write(response);
-                                exchange.getResponseBody().close();
+                                sendResponse(exchange,responseJSON);
                             }
                             case "SignUp" -> {
                                 JSONObject signUpInfo = jsonObject.getJSONObject("user");
                                 JSONObject responseJSON = new JSONObject();
                                 sqlHandler.signUp(signUpInfo.getString("name"),signUpInfo.getString("passwd"),signUpInfo.getBoolean("admin"));
                                 responseJSON.put("result",true);
-                                byte[] response = JSON.toJSONBytes(responseJSON);
-                                exchange.sendResponseHeaders(200,response.length);
-                                exchange.getResponseBody().write(response);
-                                exchange.getResponseBody().close();
-
+                                sendResponse(exchange,responseJSON);
                             }
                             case "CreatedActivity" -> {
                                 JSONObject userInfo = jsonObject.getJSONObject("user");
@@ -98,19 +88,50 @@ public class Server {
                                     responseJSON.put("result", true);
                                     responseJSON.put("activities",new JSONArray(sqlHandler.getList(userInfo.getString("name"), SQLHandler.ActivityType.Creator)));
                                 }
-                                byte[] response = JSON.toJSONBytes(responseJSON);
-                                exchange.sendResponseHeaders(200,response.length);
-                                exchange.getResponseBody().write(response);
-                                exchange.getResponseBody().close();
+                                sendResponse(exchange,responseJSON);
                             }
                             case "AllActivity" -> {
                                 JSONObject responseJSON = new JSONObject();
                                 responseJSON.put("result", true);
                                 responseJSON.put("activities",new JSONArray(sqlHandler.getList(null, SQLHandler.ActivityType.All)));
-                                byte[] response = JSON.toJSONBytes(responseJSON);
-                                exchange.sendResponseHeaders(200,response.length);
-                                exchange.getResponseBody().write(response);
-                                exchange.getResponseBody().close();
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "Apply" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                JSONObject applyInfo = jsonObject.getJSONObject("apply");
+                                sqlHandler.apply(applyInfo.getInteger("id"),applyInfo.getString("user"));
+                                responseJSON.put("result", true);
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "AppliedActivity" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                responseJSON.put("result", true);
+                                responseJSON.put("activities",new JSONArray(sqlHandler.getList(jsonObject.getString("user"), SQLHandler.ActivityType.Applied)));
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "NewActivity" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                sqlHandler.createActivity(jsonObject.getJSONObject("info"));
+                                responseJSON.put("result", true);
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "DropActivity" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                sqlHandler.dropActivity(jsonObject.getInteger("id"));
+                                responseJSON.put("result", true);
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "GetApplicants" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                responseJSON.put("result", true);
+                                responseJSON.put("applicants",new JSONArray(sqlHandler.getApplicants(jsonObject.getInteger("id"))));
+                                sendResponse(exchange,responseJSON);
+                            }
+                            case "Agree" -> {
+                                JSONObject responseJSON = new JSONObject();
+                                sqlHandler.agree(jsonObject.getJSONObject("data").getString("name"),jsonObject.getJSONObject("data").getInteger("id"),jsonObject.getJSONObject("data").getBoolean("agree"));
+                                responseJSON.put("result", true);
+                                sendResponse(exchange,responseJSON);
                             }
                         }
                     }
@@ -132,6 +153,13 @@ public class Server {
                 }
             }).start();
         }
+    }
+
+    static protected void sendResponse(HttpExchange exchange,JSONObject responseJSON) throws IOException {
+        byte[] response = JSON.toJSONBytes(responseJSON);
+        exchange.sendResponseHeaders(200,response.length);
+        exchange.getResponseBody().write(response);
+        exchange.getResponseBody().close();
     }
 
 //    public static Map<String,String> formData2Dic(String formData ) {
